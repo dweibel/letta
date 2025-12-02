@@ -1,0 +1,32 @@
+# Use full Debian image with desktop environment
+FROM python:3.11
+
+# Install build dependencies and PostgreSQL client libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy uv package manager for fast dependency installation
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/
+
+# Install Python dependencies
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --all-extras --no-cache
+
+# Copy application code
+COPY . .
+
+# Reinstall letta in editable mode for live code changes
+RUN uv pip install -e .
+
+# Add virtual environment to PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
+EXPOSE 8283
+
+# Run database migrations then start server
+# Binds to 0.0.0.0 for remote access
+CMD ["sh", "-c", "alembic upgrade head && letta server --host 0.0.0.0 --port 8283"]
